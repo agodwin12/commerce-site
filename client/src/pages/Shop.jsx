@@ -1,6 +1,6 @@
 // src/pages/Shop.jsx
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Star, ShoppingCart, Eye, Heart, Filter, X, ChevronDown, Grid as GridIcon, List } from 'lucide-react';
 import { api } from '../utils/api';
 import { ENDPOINTS } from '../utils/constants';
@@ -8,6 +8,9 @@ import { useCart } from '../context/CartContext';
 import AnimatedText from '../components/common/AnimatedText';
 
 const Shop = () => {
+
+
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -287,7 +290,12 @@ const Shop = () => {
                                     direction={index % 2 === 0 ? "left" : "right"}
                                     delay={100 + (index % 8) * 50}
                                 >
-                                    <div className="product-card">
+                                    <div className="product-card"
+                                         onClick={() => navigate(`/product/${product.id}`)}
+                                         style={{ cursor: 'pointer' }}
+                                    >
+
+
                                         {product.is_featured && (
                                             <span className="featured-badge">
                                                 <Star size={12} fill="currentColor" />

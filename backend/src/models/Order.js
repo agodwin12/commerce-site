@@ -10,24 +10,22 @@ const Order = sequelize.define('Order', {
     },
     user_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,   // ✅ guest checkout allowed
         references: {
             model: 'users',
             key: 'id'
         },
-        onDelete: 'CASCADE',
-        validate: {
-            notNull: {
-                msg: 'User ID is required'
-            }
-        }
+        onDelete: 'CASCADE'
+        // ❌ remove validate.notNull — not allowed with allowNull: true
     },
     order_number: {
         type: DataTypes.STRING(50),
         allowNull: false,
         unique: {
             msg: 'Order number must be unique'
-        }
+        },
+        defaultValue: () => `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
     },
     status: {
         type: DataTypes.ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled'),
@@ -39,54 +37,42 @@ const Order = sequelize.define('Order', {
         type: DataTypes.STRING(50),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping first name is required'
-            }
+            notEmpty: { msg: 'Shipping first name is required' }
         }
     },
     shipping_last_name: {
         type: DataTypes.STRING(50),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping last name is required'
-            }
+            notEmpty: { msg: 'Shipping last name is required' }
         }
     },
     shipping_email: {
         type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
-            isEmail: {
-                msg: 'Please provide a valid email'
-            }
+            isEmail: { msg: 'Please provide a valid email' }
         }
     },
     shipping_phone: {
         type: DataTypes.STRING(20),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping phone is required'
-            }
+            notEmpty: { msg: 'Shipping phone is required' }
         }
     },
     shipping_address: {
         type: DataTypes.STRING(255),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping address is required'
-            }
+            notEmpty: { msg: 'Shipping address is required' }
         }
     },
     shipping_city: {
         type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping city is required'
-            }
+            notEmpty: { msg: 'Shipping city is required' }
         }
     },
     shipping_state: {
@@ -101,9 +87,7 @@ const Order = sequelize.define('Order', {
         type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
-            notEmpty: {
-                msg: 'Shipping country is required'
-            }
+            notEmpty: { msg: 'Shipping country is required' }
         }
     },
     // Order Totals
@@ -111,10 +95,7 @@ const Order = sequelize.define('Order', {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
         validate: {
-            min: {
-                args: [0],
-                msg: 'Subtotal must be greater than or equal to 0'
-            }
+            min: { args: [0], msg: 'Subtotal must be >= 0' }
         }
     },
     shipping_cost: {
@@ -133,10 +114,7 @@ const Order = sequelize.define('Order', {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
         validate: {
-            min: {
-                args: [0],
-                msg: 'Total must be greater than or equal to 0'
-            }
+            min: { args: [0], msg: 'Total must be >= 0' }
         }
     },
     // Payment Information
@@ -172,7 +150,6 @@ const Order = sequelize.define('Order', {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     hooks: {
-        // Auto-generate order number before creating
         beforeCreate: async (order) => {
             if (!order.order_number) {
                 const timestamp = Date.now();

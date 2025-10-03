@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, User, Search, Menu, ChevronDown } from 'lucide-react';
 import { api } from '../../utils/api';
 import { ENDPOINTS } from '../../utils/constants';
+import { useCart } from '../../context/CartContext';
 
 const Navbar = () => {
+    const navigate = useNavigate();
+    const { cartCount } = useCart(); // Get cart count from context
     const [showSidebar, setShowSidebar] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
@@ -11,7 +15,6 @@ const Navbar = () => {
     const [showDropdown, setShowDropdown] = useState(false);
     const [categories, setCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
-    const [cartCount] = useState(3); // Mock cart count - replace with your cart context
 
     // Fetch categories from backend
     useEffect(() => {
@@ -44,8 +47,14 @@ const Navbar = () => {
     }, []);
 
     const handleSearch = () => {
-        console.log('Searching for:', searchQuery);
-        // Implement your search logic here
+        if (searchQuery.trim()) {
+            navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
+        }
+    };
+
+    const handleCategoryClick = (categoryId) => {
+        navigate(`/shop?category=${categoryId}`);
+        setShowDropdown(false);
     };
 
     return (
@@ -60,20 +69,20 @@ const Navbar = () => {
                         <Menu size={24} />
                     </button>
 
-                    <a href="/" className="logo">
+                    <div className="logo" onClick={() => navigate('/')}>
                         <h1>
                             Powersynth Labs<span className="gold">+</span>
                         </h1>
                         <div className="logo-underline"></div>
-                    </a>
+                    </div>
 
                     <div className="nav-links desktop-only">
-                        <a href="/" className="nav-link">
+                        <div className="nav-link" onClick={() => navigate('/')}>
                             <span>Home</span>
-                        </a>
-                        <a href="/shop" className="nav-link">
+                        </div>
+                        <div className="nav-link" onClick={() => navigate('/shop')}>
                             <span>Products</span>
-                        </a>
+                        </div>
                         <div
                             className="nav-link dropdown"
                             onMouseEnter={() => setShowDropdown(true)}
@@ -92,14 +101,14 @@ const Navbar = () => {
                                             </div>
                                         ) : categories.length > 0 ? (
                                             categories.map((category, index) => (
-                                                <a
+                                                <div
                                                     key={category.id || category._id || index}
-                                                    href={`/shop/category/${category.slug || category.id || category._id}`}
                                                     className="dropdown-item"
+                                                    onClick={() => handleCategoryClick(category.id)}
                                                 >
                                                     <span>{category.name}</span>
                                                     <div className="item-glow"></div>
-                                                </a>
+                                                </div>
                                             ))
                                         ) : (
                                             <div className="dropdown-empty">
@@ -110,12 +119,12 @@ const Navbar = () => {
                                 </div>
                             )}
                         </div>
-                        <a href="/about" className="nav-link">
+                        <div className="nav-link" onClick={() => navigate('/about')}>
                             <span>About</span>
-                        </a>
-                        <a href="/contact" className="nav-link">
+                        </div>
+                        <div className="nav-link" onClick={() => navigate('/contact')}>
                             <span>Contact</span>
-                        </a>
+                        </div>
                     </div>
 
                     <div className="nav-actions">
@@ -139,16 +148,37 @@ const Navbar = () => {
                         <button
                             className="icon-btn mobile-search"
                             aria-label="Search"
+                            onClick={() => navigate('/shop')}
                         >
                             <Search size={20} />
                         </button>
 
-                        <button className="icon-btn" aria-label="User account">
+                        <button
+                            className="icon-btn"
+                            aria-label="User account"
+                            onClick={() => {
+                                const token = localStorage.getItem('token');
+                                if (token) {
+                                    const user = JSON.parse(localStorage.getItem('user'));
+                                    if (user.role === 'admin') {
+                                        navigate('/admin/dashboard');
+                                    } else {
+                                        navigate('/profile');
+                                    }
+                                } else {
+                                    navigate('/login');
+                                }
+                            }}
+                        >
                             <User size={20} />
                             <span className="icon-label">Account</span>
                         </button>
 
-                        <button className="icon-btn cart-btn" aria-label="Shopping cart">
+                        <button
+                            className="icon-btn cart-btn"
+                            aria-label="Shopping cart"
+                            onClick={() => navigate('/cart')}
+                        >
                             <ShoppingCart size={20} />
                             <span className="icon-label">Cart</span>
                             {cartCount > 0 && (
@@ -479,6 +509,7 @@ const Navbar = () => {
           overflow: hidden;
           display: flex;
           align-items: center;
+          cursor: pointer;
         }
 
         .dropdown-item span {

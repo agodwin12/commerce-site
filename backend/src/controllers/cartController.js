@@ -86,6 +86,9 @@ exports.getCart = async (req, res) => {
     }
 };
 
+
+
+
 // @desc    Add item to cart
 // @route   POST /api/cart/add
 // @access  Public
@@ -202,15 +205,23 @@ exports.addToCart = async (req, res) => {
     }
 };
 
+
+
+
 // @desc    Update cart item quantity
 // @route   PUT /api/cart/items/:itemId
 // @access  Public
 exports.updateCartItem = async (req, res) => {
     try {
         const { itemId } = req.params;
-        const { quantity } = req.body;
-        const userId = req.user ? req.user.id : null;
-        const sessionId = req.headers['x-session-id'] || req.body.session_id;
+        const { quantity, session_id } = req.body;
+
+        if (!session_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session ID is required'
+            });
+        }
 
         if (!quantity || quantity < 1) {
             return res.status(400).json({
@@ -219,13 +230,14 @@ exports.updateCartItem = async (req, res) => {
             });
         }
 
-        // Find cart item
-        const cartItem = await CartItem.findByPk(itemId, {
+        // Find the cart item
+        const cartItem = await CartItem.findOne({
+            where: { id: itemId },
             include: [
                 {
                     model: Cart,
                     as: 'cart',
-                    where: userId ? { user_id: userId } : { session_id: sessionId }
+                    where: { session_id: session_id }
                 },
                 {
                     model: Product,
@@ -242,19 +254,18 @@ exports.updateCartItem = async (req, res) => {
         }
 
         // Check stock availability
-        if (cartItem.product.stock_quantity < quantity) {
+        if (quantity > cartItem.product.stock_quantity) {
             return res.status(400).json({
                 success: false,
                 message: `Only ${cartItem.product.stock_quantity} items available in stock`
             });
         }
 
-        // Update quantity
         await cartItem.update({ quantity });
 
         res.status(200).json({
             success: true,
-            message: 'Cart item updated successfully',
+            message: 'Cart item updated',
             data: cartItem
         });
 
@@ -267,22 +278,36 @@ exports.updateCartItem = async (req, res) => {
     }
 };
 
+
+
+
+
+
+
+
 // @desc    Remove item from cart
 // @route   DELETE /api/cart/items/:itemId
 // @access  Public
 exports.removeCartItem = async (req, res) => {
     try {
         const { itemId } = req.params;
-        const userId = req.user ? req.user.id : null;
-        const sessionId = req.headers['x-session-id'] || req.query.session_id;
+        const { session_id } = req.query; // Get session_id from query params
 
-        // Find cart item
-        const cartItem = await CartItem.findByPk(itemId, {
+        if (!session_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session ID is required'
+            });
+        }
+
+        // Find the cart item
+        const cartItem = await CartItem.findOne({
+            where: { id: itemId },
             include: [
                 {
                     model: Cart,
                     as: 'cart',
-                    where: userId ? { user_id: userId } : { session_id: sessionId }
+                    where: { session_id: session_id }
                 }
             ]
         });
@@ -298,35 +323,38 @@ exports.removeCartItem = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Item removed from cart successfully'
+            message: 'Item removed from cart'
         });
 
     } catch (error) {
         console.error('Remove Cart Item Error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error removing cart item'
+            message: 'Error removing item from cart'
         });
     }
 };
+
+
+
+
 
 // @desc    Clear cart
 // @route   DELETE /api/cart/clear
 // @access  Public
 exports.clearCart = async (req, res) => {
     try {
-        const userId = req.user ? req.user.id : null;
-        const sessionId = req.headers['x-session-id'] || req.query.session_id;
+        const { session_id } = req.query;
 
-        if (!userId && !sessionId) {
+        if (!session_id) {
             return res.status(400).json({
                 success: false,
-                message: 'Session ID is required for guest users'
+                message: 'Session ID is required'
             });
         }
 
         const cart = await Cart.findOne({
-            where: userId ? { user_id: userId } : { session_id: sessionId }
+            where: { session_id: session_id }
         });
 
         if (!cart) {
@@ -336,8 +364,9 @@ exports.clearCart = async (req, res) => {
             });
         }
 
-        // Delete all cart items
-        await CartItem.destroy({ where: { cart_id: cart.id } });
+        await CartItem.destroy({
+            where: { cart_id: cart.id }
+        });
 
         res.status(200).json({
             success: true,
@@ -352,7 +381,6 @@ exports.clearCart = async (req, res) => {
         });
     }
 };
-
 // @desc    Merge guest cart with user cart after login
 // @route   POST /api/cart/merge
 // @access  Private

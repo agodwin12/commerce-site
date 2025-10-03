@@ -27,4 +27,9 @@ export const ENDPOINTS = {
 
     FEATURED_PRODUCTS: '/products/featured',
 
+    CART: '/cart',
+
+    AUTH: '/auth',
+
+
 };

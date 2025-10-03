@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-
+const statsRoutes = require('./routes/statsRoutes');
 // Load environment variables
 dotenv.config();
 
@@ -36,7 +36,7 @@ app.use('/api/products/:productId/images', require('./routes/productImageRoutes'
 app.use('/api/cart', require('./routes/cartRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/hero', require('./routes/heroRoutes'));
-
+app.use('/api/stats', statsRoutes);
 // 404 Handler
 app.use((req, res, next) => {
     res.status(404).json({

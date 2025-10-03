@@ -15,7 +15,9 @@ exports.createOrder = async (req, res) => {
     const t = await sequelize.transaction();
 
     try {
-        const userId = req.user.id;
+        // If logged in, use req.user.id; otherwise set to null (guest checkout)
+        const userId = req.user ? req.user.id : null;
+
         const {
             shipping_first_name,
             shipping_last_name,
@@ -40,31 +42,31 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // Get user's cart
-        const cart = await Cart.findOne({
-            where: { user_id: userId },
-            transaction: t
-        });
-
-        if (!cart) {
-            await t.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Cart not found'
+        // If user is logged in, get their cart
+        let cartItems = [];
+        if (userId) {
+            const cart = await Cart.findOne({
+                where: { user_id: userId },
+                transaction: t
             });
-        }
 
-        // Get cart items with products
-        const cartItems = await CartItem.findAll({
-            where: { cart_id: cart.id },
-            include: [
-                {
-                    model: Product,
-                    as: 'product'
-                }
-            ],
-            transaction: t
-        });
+            if (!cart) {
+                await t.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Cart not found'
+                });
+            }
+
+            cartItems = await CartItem.findAll({
+                where: { cart_id: cart.id },
+                include: [{ model: Product, as: 'product' }],
+                transaction: t
+            });
+        } else {
+            // Guest checkout: expect cart data in request body
+            cartItems = req.body.cartItems || [];
+        }
 
         if (cartItems.length === 0) {
             await t.rollback();
@@ -77,19 +79,20 @@ exports.createOrder = async (req, res) => {
         // Validate stock and calculate totals
         let subtotal = 0;
         for (const item of cartItems) {
-            if (!item.product.is_active) {
+            const product = item.product || await Product.findByPk(item.product_id);
+            if (!product || !product.is_active) {
                 await t.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: `Product "${item.product.name}" is no longer available`
+                    message: `Product "${product ? product.name : item.product_id}" is no longer available`
                 });
             }
 
-            if (item.product.stock_quantity < item.quantity) {
+            if (product.stock_quantity < item.quantity) {
                 await t.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: `Insufficient stock for "${item.product.name}". Only ${item.product.stock_quantity} available`
+                    message: `Insufficient stock for "${product.name}". Only ${product.stock_quantity} available`
                 });
             }
 
@@ -97,13 +100,13 @@ exports.createOrder = async (req, res) => {
         }
 
         // Calculate shipping, tax, and total
-        const shipping_cost = subtotal > 100 ? 0 : 10; // Free shipping over $100
-        const tax = subtotal * 0.1; // 10% tax
+        const shipping_cost = subtotal > 100 ? 0 : 10;
+        const tax = subtotal * 0.1;
         const total = subtotal + shipping_cost + tax;
 
         // Create order
         const order = await Order.create({
-            user_id: userId,
+            user_id: userId,   // null for guests
             status: 'pending',
             shipping_first_name,
             shipping_last_name,
@@ -126,39 +129,39 @@ exports.createOrder = async (req, res) => {
 
         // Create order items and update product stock
         for (const item of cartItems) {
+            const product = item.product || await Product.findByPk(item.product_id);
+
             await OrderItem.create({
                 order_id: order.id,
-                product_id: item.product_id,
-                product_name: item.product.name,
-                product_sku: item.product.sku,
+                product_id: product.id,
+                product_name: product.name,
+                product_sku: product.sku,
                 quantity: item.quantity,
                 price: item.price,
                 total: (parseFloat(item.price) * item.quantity).toFixed(2)
             }, { transaction: t });
 
-            // Decrease product stock
-            await item.product.decrement('stock_quantity', {
+            await product.decrement('stock_quantity', {
                 by: item.quantity,
                 transaction: t
             });
         }
 
-        // Clear cart after order is created
-        await CartItem.destroy({
-            where: { cart_id: cart.id },
-            transaction: t
-        });
+        // If user is logged in, clear their cart
+        if (userId) {
+            const cart = await Cart.findOne({ where: { user_id: userId } });
+            if (cart) {
+                await CartItem.destroy({
+                    where: { cart_id: cart.id },
+                    transaction: t
+                });
+            }
+        }
 
         await t.commit();
 
-        // Fetch created order with items
         const createdOrder = await Order.findByPk(order.id, {
-            include: [
-                {
-                    model: OrderItem,
-                    as: 'items'
-                }
-            ]
+            include: [{ model: OrderItem, as: 'items' }]
         });
 
         res.status(201).json({
@@ -184,6 +187,7 @@ exports.createOrder = async (req, res) => {
         });
     }
 };
+
 
 // @desc    Get all orders (Admin)
 // @route   GET /api/orders
@@ -445,6 +449,190 @@ exports.cancelOrder = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error cancelling order'
+        });
+    }
+};
+
+
+exports.createGuestOrder = async (req, res) => {
+    const t = await sequelize.transaction();
+
+    try {
+        const {
+            session_id,  // For guest users
+            shipping_first_name,
+            shipping_last_name,
+            shipping_email,
+            shipping_phone,
+            shipping_address,
+            shipping_city,
+            shipping_state,
+            shipping_postal_code,
+            shipping_country,
+            payment_method,
+            notes
+        } = req.body;
+
+        // Validation
+        if (!shipping_first_name || !shipping_last_name || !shipping_email ||
+            !shipping_phone || !shipping_address || !shipping_city || !shipping_country) {
+            await t.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide all required shipping information'
+            });
+        }
+
+        if (!session_id) {
+            await t.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Session ID is required for guest orders'
+            });
+        }
+
+        // Get cart by session_id
+        const cart = await Cart.findOne({
+            where: { session_id: session_id },
+            transaction: t
+        });
+
+        if (!cart) {
+            await t.rollback();
+            return res.status(404).json({
+                success: false,
+                message: 'Cart not found'
+            });
+        }
+
+        // Get cart items with products
+        const cartItems = await CartItem.findAll({
+            where: { cart_id: cart.id },
+            include: [
+                {
+                    model: Product,
+                    as: 'product'
+                }
+            ],
+            transaction: t
+        });
+
+        if (cartItems.length === 0) {
+            await t.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Cart is empty'
+            });
+        }
+
+        // Validate stock and calculate totals
+        let subtotal = 0;
+        for (const item of cartItems) {
+            if (!item.product.is_active) {
+                await t.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `Product "${item.product.name}" is no longer available`
+                });
+            }
+
+            if (item.product.stock_quantity < item.quantity) {
+                await t.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `Insufficient stock for "${item.product.name}". Only ${item.product.stock_quantity} available`
+                });
+            }
+
+            subtotal += parseFloat(item.price) * item.quantity;
+        }
+
+        // Calculate shipping, tax, and total
+        const shipping_cost = subtotal > 100 ? 0 : 10;
+        const tax = subtotal * 0.1;
+        const total = subtotal + shipping_cost + tax;
+
+        // Create order (user_id will be null for guest orders)
+        const order = await Order.create({
+            user_id: cart.user_id || null,  // null for guest orders
+            session_id: session_id,  // Store session_id for guest tracking
+            status: 'pending',
+            shipping_first_name,
+            shipping_last_name,
+            shipping_email,
+            shipping_phone,
+            shipping_address,
+            shipping_city,
+            shipping_state,
+            shipping_postal_code,
+            shipping_country,
+            subtotal: subtotal.toFixed(2),
+            shipping_cost: shipping_cost.toFixed(2),
+            tax: tax.toFixed(2),
+            discount: 0,
+            total: total.toFixed(2),
+            payment_method: payment_method || 'pending',
+            payment_status: 'pending',
+            notes
+        }, { transaction: t });
+
+        // Create order items and update product stock
+        for (const item of cartItems) {
+            await OrderItem.create({
+                order_id: order.id,
+                product_id: item.product_id,
+                product_name: item.product.name,
+                product_sku: item.product.sku,
+                quantity: item.quantity,
+                price: item.price,
+                total: (parseFloat(item.price) * item.quantity).toFixed(2)
+            }, { transaction: t });
+
+            // Decrease product stock
+            await item.product.decrement('stock_quantity', {
+                by: item.quantity,
+                transaction: t
+            });
+        }
+
+        // Clear cart after order is created
+        await CartItem.destroy({
+            where: { cart_id: cart.id },
+            transaction: t
+        });
+
+        await t.commit();
+
+        // Fetch created order with items
+        const createdOrder = await Order.findByPk(order.id, {
+            include: [
+                {
+                    model: OrderItem,
+                    as: 'items'
+                }
+            ]
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Order created successfully',
+            data: createdOrder
+        });
+
+    } catch (error) {
+        await t.rollback();
+        console.error('Create Guest Order Error:', error);
+
+        if (error.name === 'SequelizeValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: error.errors[0].message
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Error creating order'
         });
     }
 };

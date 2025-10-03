@@ -1,5 +1,9 @@
 // api.js
 import { API_URL } from './constants';
+const token = localStorage.getItem('token');
+
+
+
 
 // Alias to satisfy the class-based client without changing its logic
 const API_BASE_URL = API_URL;

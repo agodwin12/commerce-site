@@ -14,4 +14,6 @@ router.put('/:id/cancel', protect, orderController.cancelOrder);
 router.get('/', protect, admin, orderController.getAllOrders);
 router.put('/:id/status', protect, admin, orderController.updateOrderStatus);
 
+router.post('/guest', orderController.createGuestOrder);
+
 module.exports = router;
