@@ -13,22 +13,35 @@ import ProductDetailsPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import LoginPage from "./components/Auth/LoginPage.jsx";
+
+// Admin Components
 import AdminLayout from './components/Admins/AdminLayout';
 import DashboardView from "./components/Dashboard/DashboardView.jsx";
 import ProductsView from "./components/Products/ProductsView.jsx";
+import CategoriesView from "./components/Categories/CategoriesView.jsx"; // Add this import
+import OrdersView from "./components/Orders/OrdersView.jsx"; // Add this import
+import AdminsView from "./components/Admins/AdminsView.jsx"; // Add this import
+
 import './App.css';
 
 // Protected Route Component for Admin
 const ProtectedAdminRoute = ({ children }) => {
     const token = localStorage.getItem('adminToken');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userStr = localStorage.getItem('user');
 
-    if (!token) {
+    if (!token || !userStr) {
         return <Navigate to="/login" replace />;
     }
 
-    if (user.role !== 'admin' && user.role !== 'super_admin') {
-        return <Navigate to="/" replace />;
+    try {
+        const user = JSON.parse(userStr);
+        // Only check for 'admin' since that's what exists in your DB
+        if (user.role !== 'admin') {
+            return <Navigate to="/" replace />;
+        }
+    } catch (error) {
+        console.error('Error parsing user:', error);
+        return <Navigate to="/login" replace />;
     }
 
     return children;
@@ -64,10 +77,12 @@ function App() {
                             </ProtectedAdminRoute>
                         }
                     >
-                        <Route index element={<Navigate to="/admin/products" replace />} />
+                        <Route index element={<Navigate to="/admin/dashboard" replace />} />
                         <Route path="dashboard" element={<DashboardView />} />
                         <Route path="products" element={<ProductsView />} />
-                        {/* Add more admin routes here as needed */}
+                        <Route path="categories" element={<CategoriesView />} /> {/* ADDED */}
+                        <Route path="orders" element={<OrdersView />} /> {/* ADDED */}
+                        <Route path="admins" element={<AdminsView />} /> {/* ADDED */}
                     </Route>
 
                     {/* Public Routes - Use PublicLayout (With Navbar/Footer) */}

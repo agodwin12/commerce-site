@@ -67,14 +67,26 @@ const ProductDetailsPage = () => {
     const getProductImages = () => {
         if (!product) return [];
         if (product.images && product.images.length > 0) {
-            return product.images.map(img => `http://localhost:3000${img.image_url}`);
+            return product.images.map(img => {
+                // Check if it's already a full URL
+                if (img.image_url.startsWith('http')) {
+                    return img.image_url;
+                }
+                return `http://localhost:3000${img.image_url}`;
+            });
         }
         return ['https://via.placeholder.com/600x600?text=Product'];
     };
 
     const getProductImage = (prod) => {
         if (prod.images && prod.images.length > 0) {
-            return `http://localhost:3000${prod.images[0].image_url}`;
+            const imagePath = prod.images[0].image_url;
+
+            // Check if it's already a full URL
+            if (imagePath.startsWith('http')) {
+                return imagePath;
+            }
+            return `http://localhost:3000${imagePath}`;
         }
         return 'https://via.placeholder.com/300x300?text=Product';
     };

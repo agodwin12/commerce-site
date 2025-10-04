@@ -2,6 +2,7 @@
 const Cart = require('../models/Cart');
 const CartItem = require('../models/CartItem');
 const Product = require('../models/Product');
+const ProductImage = require('../models/ProductImage');  // ← ADD THIS
 const crypto = require('crypto');
 
 // Helper function to get or create cart
@@ -48,7 +49,14 @@ exports.getCart = async (req, res) => {
                 {
                     model: Product,
                     as: 'product',
-                    attributes: ['id', 'name', 'slug', 'price', 'stock_quantity', 'is_active']
+                    attributes: ['id', 'name', 'slug', 'price', 'stock_quantity', 'is_active'],
+                    include: [  // ← ADD THIS ENTIRE BLOCK
+                        {
+                            model: ProductImage,
+                            as: 'images',
+                            attributes: ['id', 'image_url', 'is_primary']
+                        }
+                    ]
                 }
             ]
         });
@@ -176,7 +184,14 @@ exports.addToCart = async (req, res) => {
                 {
                     model: Product,
                     as: 'product',
-                    attributes: ['id', 'name', 'slug', 'price', 'stock_quantity']
+                    attributes: ['id', 'name', 'slug', 'price', 'stock_quantity'],
+                    include: [  // ← ADD THIS
+                        {
+                            model: ProductImage,
+                            as: 'images',
+                            attributes: ['id', 'image_url', 'is_primary']
+                        }
+                    ]
                 }
             ]
         });

@@ -1,7 +1,7 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Phone, Mail, User, Lock, CheckCircle } from 'lucide-react';
+import {CreditCard, Truck, MapPin, Phone, Mail, User, Lock, CheckCircle, Wallet} from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { api } from '../utils/api';
 import { ENDPOINTS } from '../utils/constants';
@@ -360,8 +360,8 @@ const CheckoutPage = () => {
                                         onChange={() => setPaymentMethod('cod')}
                                     />
                                     <div className="payment-info">
-                                        <Truck size={20} />
-                                        <span>Cash on Delivery</span>
+                                        <Wallet  size={20} />
+                                        <span>cashApp / Zelle/ Venmo</span>
                                     </div>
                                 </div>
                             </div>

@@ -58,7 +58,14 @@ const FeaturedProducts = () => {
 
     const getProductImage = (product) => {
         if (product.images && product.images.length > 0) {
-            return `http://localhost:3000${product.images[0].image_url}`;
+            const imagePath = product.images[0].image_url;
+
+            // Check if it's already a full URL
+            if (imagePath.startsWith('http')) {
+                return imagePath;
+            }
+
+            return `http://localhost:3000${imagePath}`;
         }
         return 'https://via.placeholder.com/400x400?text=No+Image';
     };

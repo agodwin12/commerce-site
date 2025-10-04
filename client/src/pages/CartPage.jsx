@@ -12,7 +12,14 @@ const CartPage = () => {
 
     const getProductImage = (item) => {
         if (item.product?.images && item.product.images.length > 0) {
-            return `http://localhost:3000${item.product.images[0].image_url}`;
+            const imagePath = item.product.images[0].image_url;
+
+            // Check if it's already a full URL
+            if (imagePath.startsWith('http')) {
+                return imagePath;
+            }
+
+            return `http://localhost:3000${imagePath}`;
         }
         return 'https://via.placeholder.com/150x150?text=Product';
     };
@@ -56,6 +63,9 @@ const CartPage = () => {
     const safeCart = Array.isArray(cart) ? cart : [];
 
     if (safeCart.length === 0) {
+        console.log('First cart item:', safeCart[0]);
+        console.log('First item product:', safeCart[0].product);
+        console.log('First item product images:', safeCart[0].product?.images);
         return (
             <div className="cart-page">
                 <AnimatedText direction="top" delay={50}>

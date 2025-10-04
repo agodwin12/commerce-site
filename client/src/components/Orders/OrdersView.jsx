@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, Download } from 'lucide-react';
+import { Search, Eye, ShoppingCart, X, Package } from 'lucide-react';
 import { api } from '../../utils/api';
 import { ENDPOINTS } from '../../utils/constants';
 
@@ -8,6 +8,8 @@ const OrdersView = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [loading, setLoading] = useState(true);
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [showModal, setShowModal] = useState(false);
 
     useEffect(() => {
         fetchOrders();
@@ -16,19 +18,32 @@ const OrdersView = () => {
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const data = await api.get(ENDPOINTS.ORDERS);
-            setOrders(Array.isArray(data) ? data : []);
+            const response = await api.get(ENDPOINTS.ORDERS);
+            if (response.success && response.data) {
+                const formattedOrders = response.data.map(order => ({
+                    id: order.id,
+                    customerName: order.user
+                        ? `${order.user.first_name} ${order.user.last_name}`
+                        : order.shipping_first_name + ' ' + order.shipping_last_name || 'Guest',
+                    total: parseFloat(order.total || 0),
+                    itemCount: order.items?.length || 0,
+                    status: order.status || 'pending',
+                    date: order.created_at || order.createdAt,
+                    items: order.items || []
+                }));
+                setOrders(formattedOrders);
+            }
         } catch (error) {
             console.error('Error fetching orders:', error);
-            setOrders([]);
         } finally {
             setLoading(false);
         }
     };
 
+
     const updateOrderStatus = async (orderId, status) => {
         try {
-            await api.put(ENDPOINTS.ORDER_STATUS(orderId), { status });
+            await api.put(`/orders/${orderId}/status`, { status });  // ← Remove /api
             fetchOrders();
         } catch (error) {
             console.error('Error updating order:', error);
@@ -36,41 +51,59 @@ const OrdersView = () => {
         }
     };
 
+    const viewOrderDetails = async (orderId) => {
+        try {
+            const response = await api.get(`/orders/${orderId}`);  // ← Remove /api
+            if (response.success && response.data) {
+                setSelectedOrder(response.data);
+                setShowModal(true);
+            }
+        } catch (error) {
+            console.error('Error fetching order details:', error);
+            alert('Failed to load order details');
+        }
+    };
+
+
     const getStatusColor = (status) => {
         const colors = {
-            pending: { bg: '#fff3cd', color: '#856404' },
-            processing: { bg: '#cfe2ff', color: '#084298' },
-            shipped: { bg: '#d1ecf1', color: '#0c5460' },
-            completed: { bg: '#d4edda', color: '#155724' },
-            cancelled: { bg: '#f8d7da', color: '#721c24' }
+            pending: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)', color: '#856404', border: '#ffc107' },
+            processing: { bg: 'linear-gradient(135deg, #cfe2ff 0%, #a8d5ff 100%)', color: '#084298', border: '#0d6efd' },
+            shipped: { bg: 'linear-gradient(135deg, #d1ecf1 0%, #a8e6f0 100%)', color: '#0c5460', border: '#0dcaf0' },
+            delivered: { bg: 'linear-gradient(135deg, #d4edda 0%, #b3e5c5 100%)', color: '#155724', border: '#28a745' },
+            cancelled: { bg: 'linear-gradient(135deg, #f8d7da 0%, #f5b7bd 100%)', color: '#721c24', border: '#dc3545' }
         };
         return colors[status] || colors.pending;
     };
 
-    const filteredOrders = orders
-        .filter(order => {
-            const matchesSearch =
-                order.id?.toString().includes(searchTerm) ||
-                order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
-            return matchesSearch && matchesStatus;
-        });
+    const filteredOrders = orders.filter(order => {
+        const matchesSearch =
+            order.id?.toString().includes(searchTerm) ||
+            order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
+        return matchesSearch && matchesStatus;
+    });
 
     const statusCounts = {
         all: orders.length,
         pending: orders.filter(o => o.status === 'pending').length,
         processing: orders.filter(o => o.status === 'processing').length,
         shipped: orders.filter(o => o.status === 'shipped').length,
-        completed: orders.filter(o => o.status === 'completed').length,
+        delivered: orders.filter(o => o.status === 'delivered').length,
         cancelled: orders.filter(o => o.status === 'cancelled').length
     };
 
     return (
         <div className="orders-view">
+            <div className="view-header">
+                <h2>Order Management</h2>
+                <p>Track and manage all customer orders</p>
+            </div>
+
             <div className="data-table-container">
                 <div className="table-header">
                     <div className="search-box">
-                        <Search size={20} color="#666" />
+                        <Search size={20} />
                         <input
                             type="text"
                             placeholder="Search by order ID or customer name..."
@@ -87,16 +120,20 @@ const OrdersView = () => {
                             className={`filter-btn ${filterStatus === status ? 'active' : ''}`}
                             onClick={() => setFilterStatus(status)}
                         >
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                            <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
                             <span className="count">{count}</span>
                         </button>
                     ))}
                 </div>
 
                 {loading ? (
-                    <div className="loading">Loading orders...</div>
+                    <div className="loading">
+                        <div className="spinner"></div>
+                        <p>Loading orders...</p>
+                    </div>
                 ) : filteredOrders.length === 0 ? (
                     <div className="no-data">
+                        <ShoppingCart size={64} color="#ccc" />
                         <p>No orders found</p>
                     </div>
                 ) : (
@@ -114,24 +151,25 @@ const OrdersView = () => {
                             </tr>
                             </thead>
                             <tbody>
-                            {filteredOrders.map(order => {
+                            {filteredOrders.map((order, index) => {
                                 const statusStyle = getStatusColor(order.status);
                                 return (
-                                    <tr key={order.id}>
+                                    <tr key={order.id} style={{ animationDelay: `${index * 0.05}s` }}>
                                         <td className="order-id">#{order.id}</td>
-                                        <td className="customer-name">{order.customerName || 'N/A'}</td>
-                                        <td className="total">${(order.total || 0).toFixed(2)}</td>
-                                        <td>{order.itemCount || 0} items</td>
+                                        <td className="customer-name">{order.customerName}</td>
+                                        <td className="total">${order.total.toFixed(2)}</td>
+                                        <td className="items-count">{order.itemCount} items</td>
                                         <td>
-                        <span
-                            className="status-badge"
-                            style={{
-                                background: statusStyle.bg,
-                                color: statusStyle.color
-                            }}
-                        >
-                          {order.status || 'pending'}
-                        </span>
+                                                <span
+                                                    className="status-badge"
+                                                    style={{
+                                                        background: statusStyle.bg,
+                                                        color: statusStyle.color,
+                                                        borderColor: statusStyle.border
+                                                    }}
+                                                >
+                                                    {order.status}
+                                                </span>
                                         </td>
                                         <td className="date">
                                             {order.date ? new Date(order.date).toLocaleDateString() : 'N/A'}
@@ -146,10 +184,14 @@ const OrdersView = () => {
                                                     <option value="pending">Pending</option>
                                                     <option value="processing">Processing</option>
                                                     <option value="shipped">Shipped</option>
-                                                    <option value="completed">Completed</option>
+                                                    <option value="delivered">Delivered</option>
                                                     <option value="cancelled">Cancelled</option>
                                                 </select>
-                                                <button className="icon-btn view" title="View details">
+                                                <button
+                                                    className="icon-btn view"
+                                                    onClick={() => viewOrderDetails(order.id)}
+                                                    title="View details"
+                                                >
                                                     <Eye size={18} />
                                                 </button>
                                             </div>
@@ -163,225 +205,373 @@ const OrdersView = () => {
                 )}
             </div>
 
+            {/* Order Details Modal */}
+            {showModal && selectedOrder && (
+                <div className="modal-overlay" onClick={() => setShowModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Order #{selectedOrder.id}</h2>
+                            <button className="close-btn" onClick={() => setShowModal(false)}>
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="modal-body">
+                            <div className="order-info-grid">
+                                <div className="info-section">
+                                    <h3>Customer Information</h3>
+                                    <p><strong>Name:</strong> {selectedOrder.shipping_first_name} {selectedOrder.shipping_last_name}</p>
+                                    <p><strong>Email:</strong> {selectedOrder.shipping_email}</p>
+                                    <p><strong>Phone:</strong> {selectedOrder.shipping_phone}</p>
+                                </div>
+
+                                <div className="info-section">
+                                    <h3>Shipping Address</h3>
+                                    <p>{selectedOrder.shipping_address}</p>
+                                    <p>{selectedOrder.shipping_city}, {selectedOrder.shipping_state} {selectedOrder.shipping_postal_code}</p>
+                                    <p>{selectedOrder.shipping_country}</p>
+                                </div>
+                            </div>
+
+                            <div className="items-section">
+                                <h3>Order Items</h3>
+                                <div className="items-list">
+                                    {selectedOrder.items?.map((item, idx) => (
+                                        <div key={idx} className="item-card">
+                                            <Package size={20} />
+                                            <div className="item-details">
+                                                <p className="item-name">{item.product_name}</p>
+                                                <p className="item-qty">Qty: {item.quantity} × ${parseFloat(item.price).toFixed(2)}</p>
+                                            </div>
+                                            <p className="item-total">${parseFloat(item.total).toFixed(2)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="order-summary">
+                                <div className="summary-row">
+                                    <span>Subtotal:</span>
+                                    <span>${parseFloat(selectedOrder.subtotal).toFixed(2)}</span>
+                                </div>
+                                <div className="summary-row">
+                                    <span>Shipping:</span>
+                                    <span>${parseFloat(selectedOrder.shipping_cost).toFixed(2)}</span>
+                                </div>
+                                <div className="summary-row">
+                                    <span>Tax:</span>
+                                    <span>${parseFloat(selectedOrder.tax).toFixed(2)}</span>
+                                </div>
+                                <div className="summary-row total">
+                                    <span>Total:</span>
+                                    <span>${parseFloat(selectedOrder.total).toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
-        .orders-view {
-          animation: fadeIn 0.5s ease-in;
-        }
+                @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+                .orders-view {
+                    animation: slideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+                    font-family: 'Poppins', sans-serif;
+                }
 
-        .data-table-container {
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          overflow: hidden;
-        }
+                @keyframes slideIn {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
 
-        .table-header {
-          padding: 20px;
-          border-bottom: 1px solid #eee;
-        }
+                .view-header { margin-bottom: 30px; }
+                .view-header h2 { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+                .view-header p { color: #666; font-size: 15px; }
 
-        .search-box {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: #f5f5f5;
-          padding: 10px 15px;
-          border-radius: 8px;
-          max-width: 500px;
-        }
+                .data-table-container {
+                    background: #fff;
+                    border-radius: 16px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+                    overflow: hidden;
+                }
 
-        .search-box input {
-          border: none;
-          background: none;
-          flex: 1;
-          outline: none;
-          font-size: 14px;
-        }
+                .table-header { padding: 25px; border-bottom: 2px solid #f0f0f0; }
 
-        .status-filters {
-          display: flex;
-          gap: 10px;
-          padding: 20px;
-          border-bottom: 1px solid #eee;
-          overflow-x: auto;
-          flex-wrap: wrap;
-        }
+                .search-box {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    background: #fff;
+                    padding: 14px 18px;
+                    border-radius: 12px;
+                    border: 2px solid #e0e0e0;
+                    max-width: 500px;
+                    transition: all 0.3s;
+                }
 
-        .filter-btn {
-          padding: 8px 16px;
-          border: 2px solid #e0e0e0;
-          background: #fff;
-          border-radius: 20px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          color: #666;
-          transition: all 0.3s;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          white-space: nowrap;
-        }
+                .search-box:focus-within {
+                    border-color: #FFD700;
+                    box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.1);
+                }
 
-        .filter-btn:hover {
-          border-color: #FFD700;
-        }
+                .search-box input {
+                    border: none;
+                    flex: 1;
+                    outline: none;
+                    font-size: 15px;
+                    font-family: 'Poppins', sans-serif;
+                }
 
-        .filter-btn.active {
-          background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-          color: #000;
-          border-color: #FFD700;
-        }
+                .status-filters {
+                    display: flex;
+                    gap: 12px;
+                    padding: 25px;
+                    flex-wrap: wrap;
+                    background: #fafafa;
+                }
 
-        .filter-btn .count {
-          background: rgba(0,0,0,0.1);
-          padding: 2px 8px;
-          border-radius: 10px;
-          font-size: 12px;
-          font-weight: 600;
-        }
+                .filter-btn {
+                    padding: 12px 20px;
+                    border: 2px solid #e0e0e0;
+                    background: #fff;
+                    border-radius: 25px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    font-family: 'Poppins', sans-serif;
+                    display: flex;
+                    gap: 10px;
+                    transition: all 0.3s;
+                }
 
-        .filter-btn.active .count {
-          background: rgba(0,0,0,0.2);
-        }
+                .filter-btn:hover { border-color: #FFD700; transform: translateY(-2px); }
+                .filter-btn.active {
+                    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                    color: #000;
+                    border-color: #FFD700;
+                }
 
-        .loading, .no-data {
-          text-align: center;
-          padding: 60px 20px;
-          color: #666;
-        }
+                .filter-btn .count {
+                    background: rgba(0, 0, 0, 0.1);
+                    padding: 4px 10px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                }
 
-        .table-wrapper {
-          overflow-x: auto;
-        }
+                .loading {
+                    text-align: center;
+                    padding: 80px 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 20px;
+                }
 
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
+                .spinner {
+                    width: 50px;
+                    height: 50px;
+                    border: 4px solid #f0f0f0;
+                    border-top: 4px solid #FFD700;
+                    border-radius: 50%;
+                    animation: spin 0.8s linear infinite;
+                }
 
-        .data-table th {
-          background: #f8f9fa;
-          padding: 15px;
-          text-align: left;
-          font-weight: 600;
-          color: #333;
-          border-bottom: 2px solid #eee;
-          white-space: nowrap;
-        }
+                @keyframes spin { to { transform: rotate(360deg); } }
 
-        .data-table td {
-          padding: 15px;
-          border-bottom: 1px solid #eee;
-          color: #666;
-        }
+                .no-data { text-align: center; padding: 80px 20px; }
 
-        .data-table tr:hover {
-          background: #f8f9fa;
-        }
+                .table-wrapper { overflow-x: auto; }
+                .data-table { width: 100%; border-collapse: collapse; }
+                .data-table thead tr { background: linear-gradient(135deg, #1a1a1a 0%, #000 100%); }
+                .data-table th {
+                    padding: 18px 20px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #FFD700;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                }
 
-        .order-id {
-          font-weight: 600;
-          color: #1a1a1a;
-        }
+                .data-table tbody tr {
+                    border-bottom: 1px solid #f0f0f0;
+                    animation: fadeInRow 0.5s ease-out backwards;
+                }
 
-        .customer-name {
-          font-weight: 500;
-          color: #333;
-        }
+                @keyframes fadeInRow {
+                    from { opacity: 0; transform: translateX(-10px); }
+                    to { opacity: 1; transform: translateX(0); }
+                }
 
-        .total {
-          font-weight: 600;
-          color: #4CAF50;
-          font-size: 16px;
-        }
+                .data-table tbody tr:hover {
+                    background: linear-gradient(90deg, rgba(255, 215, 0, 0.05) 0%, transparent 100%);
+                }
 
-        .date {
-          color: #999;
-          font-size: 14px;
-        }
+                .data-table td { padding: 20px; color: #666; font-size: 14px; }
+                .order-id { font-weight: 700; color: #000; font-size: 15px; }
+                .customer-name { font-weight: 600; color: #333; }
+                .total { font-weight: 700; color: #4CAF50; font-size: 17px; }
+                .items-count { color: #666; font-weight: 500; }
+                .date { color: #999; font-size: 13px; }
 
-        .status-badge {
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          text-transform: capitalize;
-          display: inline-block;
-        }
+                .status-badge {
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    font-weight: 700;
+                    text-transform: capitalize;
+                    display: inline-block;
+                    border: 2px solid;
+                }
 
-        .action-controls {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-        }
+                .action-controls { display: flex; gap: 10px; align-items: center; }
 
-        .status-select {
-          padding: 6px 10px;
-          border: 2px solid #eee;
-          border-radius: 6px;
-          font-size: 13px;
-          cursor: pointer;
-          transition: all 0.3s;
-        }
+                .status-select {
+                    padding: 8px 12px;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-family: 'Poppins', sans-serif;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }
 
-        .status-select:hover {
-          border-color: #FFD700;
-        }
+                .status-select:hover { border-color: #FFD700; }
+                .status-select:focus { outline: none; border-color: #FFD700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1); }
 
-        .status-select:focus {
-          outline: none;
-          border-color: #FFD700;
-        }
+                .icon-btn {
+                    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+                    border: 2px solid #e0e0e0;
+                    padding: 10px;
+                    cursor: pointer;
+                    border-radius: 8px;
+                    transition: all 0.3s;
+                    display: flex;
+                }
 
-        .icon-btn {
-          background: none;
-          border: none;
-          padding: 8px;
-          cursor: pointer;
-          border-radius: 6px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+                .icon-btn:hover {
+                    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                    border-color: #FFD700;
+                    transform: scale(1.1);
+                    color: #000;
+                }
 
-        .icon-btn:hover {
-          background: #f0f0f0;
-          transform: scale(1.1);
-        }
+                .modal-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2000;
+                    animation: fadeIn 0.3s;
+                }
 
-        .icon-btn.view { color: #2196F3; }
+                .modal-content {
+                    background: #fff;
+                    border-radius: 16px;
+                    max-width: 800px;
+                    width: 90%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    animation: slideUp 0.3s;
+                }
 
-        @media (max-width: 768px) {
-          .search-box {
-            max-width: 100%;
-          }
+                @keyframes slideUp {
+                    from { transform: translateY(30px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
 
-          .status-filters {
-            overflow-x: auto;
-            flex-wrap: nowrap;
-          }
+                .modal-header {
+                    padding: 25px;
+                    border-bottom: 2px solid #f0f0f0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+                    color: #FFD700;
+                }
 
-          .data-table {
-            font-size: 14px;
-          }
+                .modal-header h2 { margin: 0; font-size: 24px; }
+                .close-btn { background: none; border: none; color: #FFD700; cursor: pointer; padding: 5px; }
+                .close-btn:hover { transform: scale(1.1); }
 
-          .data-table th,
-          .data-table td {
-            padding: 10px;
-          }
+                .modal-body { padding: 25px; }
 
-          .action-controls {
-            flex-direction: column;
-          }
-        }
-      `}</style>
+                .order-info-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+
+                .info-section {
+                    background: #f8f9fa;
+                    padding: 20px;
+                    border-radius: 12px;
+                }
+
+                .info-section h3 {
+                    font-size: 16px;
+                    margin-bottom: 15px;
+                    color: #000;
+                    font-weight: 700;
+                }
+
+                .info-section p { margin: 8px 0; font-size: 14px; color: #666; }
+
+                .items-section { margin-bottom: 30px; }
+                .items-section h3 {
+                    font-size: 18px;
+                    margin-bottom: 15px;
+                    color: #000;
+                    font-weight: 700;
+                }
+
+                .items-list { display: flex; flex-direction: column; gap: 12px; }
+
+                .item-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 12px;
+                    border-left: 4px solid #FFD700;
+                }
+
+                .item-details { flex: 1; }
+                .item-name { font-weight: 600; color: #000; margin-bottom: 5px; }
+                .item-qty { font-size: 13px; color: #666; }
+                .item-total { font-weight: 700; color: #4CAF50; font-size: 16px; }
+
+                .order-summary {
+                    background: #f8f9fa;
+                    padding: 20px;
+                    border-radius: 12px;
+                }
+
+                .summary-row {
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 10px 0;
+                    font-size: 15px;
+                }
+
+                .summary-row.total {
+                    border-top: 2px solid #FFD700;
+                    margin-top: 10px;
+                    padding-top: 15px;
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #000;
+                }
+
+                @media (max-width: 768px) {
+                    .order-info-grid { grid-template-columns: 1fr; }
+                    .action-controls { flex-direction: column; gap: 6px; }
+                }
+            `}</style>
         </div>
     );
 };

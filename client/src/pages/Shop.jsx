@@ -26,7 +26,6 @@ const Shop = () => {
     const [selectedCategory, setSelectedCategory] = useState(
         categoryIdFromUrl ? parseInt(categoryIdFromUrl) : null
     );
-
     useEffect(() => {
         fetchProducts();
         fetchCategories();
@@ -52,6 +51,29 @@ const Shop = () => {
         try {
             setLoading(true);
             const response = await api.get(ENDPOINTS.PRODUCTS);
+
+            // DEBUG LOGS
+            console.log('=== SHOP PAGE DEBUG ===');
+            console.log('Full response:', response);
+            console.log('Total products:', response.data?.length);
+
+            if (response.data && response.data.length > 0) {
+                const firstProduct = response.data[0];
+                console.log('First product:', firstProduct);
+                console.log('First product name:', firstProduct.name);
+                console.log('First product images array:', firstProduct.images);
+                console.log('Images length:', firstProduct.images?.length);
+
+                if (firstProduct.images && firstProduct.images.length > 0) {
+                    console.log('First image object:', firstProduct.images[0]);
+                    console.log('Image URL:', firstProduct.images[0].image_url);
+                    console.log('Full constructed URL:', `http://localhost:3000${firstProduct.images[0].image_url}`);
+                } else {
+                    console.log('❌ First product has NO images!');
+                }
+            }
+            console.log('======================');
+
             if (response.success && response.data) {
                 setProducts(response.data);
             }
@@ -61,7 +83,6 @@ const Shop = () => {
             setLoading(false);
         }
     };
-
     const fetchCategories = async () => {
         try {
             const response = await api.get(ENDPOINTS.CATEGORIES);
@@ -96,7 +117,15 @@ const Shop = () => {
 
     const getProductImage = (product) => {
         if (product.images && product.images.length > 0) {
-            return `http://localhost:3000${product.images[0].image_url}`;
+            const imagePath = product.images[0].image_url;
+
+            // Check if it's already a full URL
+            if (imagePath.startsWith('http')) {
+                return imagePath;
+            }
+
+            // Otherwise prepend the base URL
+            return `http://localhost:3000${imagePath}`;
         }
         return 'https://via.placeholder.com/400x400?text=Product';
     };

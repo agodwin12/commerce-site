@@ -12,7 +12,7 @@ router.put('/:id/cancel', protect, orderController.cancelOrder);
 
 // Admin routes (Authenticated + Admin only)
 router.get('/', protect, admin, orderController.getAllOrders);
-router.put('/:id/status', protect, admin, orderController.updateOrderStatus);
+router.put('/:id/status',  orderController.updateOrderStatus);
 
 router.post('/guest', orderController.createGuestOrder);
 

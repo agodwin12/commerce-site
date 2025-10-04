@@ -1,20 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, User, Search, Menu, ChevronDown } from 'lucide-react';
+import { ShoppingCart, User, Search, Menu, ChevronDown, LogOut } from 'lucide-react';
 import { api } from '../../utils/api';
 import { ENDPOINTS } from '../../utils/constants';
 import { useCart } from '../../context/CartContext';
+import MobileSidebar from './MobileSidebar';
 
 const Navbar = () => {
     const navigate = useNavigate();
-    const { cartCount } = useCart(); // Get cart count from context
+    const { cartCount } = useCart();
     const [showSidebar, setShowSidebar] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
     const [categories, setCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState(null);
+
+    // Load user from localStorage on mount
+    useEffect(() => {
+        const loadUser = () => {
+            try {
+                const token = localStorage.getItem('adminToken');
+                const userStr = localStorage.getItem('user');
+
+                if (token && userStr) {
+                    const user = JSON.parse(userStr);
+                    setCurrentUser(user);
+                } else {
+                    setCurrentUser(null);
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+                setCurrentUser(null);
+            }
+        };
+
+        loadUser();
+
+        const handleStorageChange = () => {
+            loadUser();
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
 
     // Fetch categories from backend
     useEffect(() => {
@@ -57,6 +89,31 @@ const Navbar = () => {
         setShowDropdown(false);
     };
 
+    const handleUserIconClick = () => {
+        if (currentUser) {
+            setShowUserMenu(!showUserMenu);
+        } else {
+            navigate('/login');
+        }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('user');
+        setCurrentUser(null);
+        setShowUserMenu(false);
+        navigate('/');
+    };
+
+    const handleProfileClick = () => {
+        if (currentUser && currentUser.role === 'admin') {
+            navigate('/admin/dashboard');
+        } else {
+            navigate('/profile');
+        }
+        setShowUserMenu(false);
+    };
+
     return (
         <>
             <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
@@ -73,6 +130,7 @@ const Navbar = () => {
                         <h1>
                             Powersynth Labs<span className="gold">+</span>
                         </h1>
+                        <div className="logo-glow"></div>
                         <div className="logo-underline"></div>
                     </div>
 
@@ -153,26 +211,54 @@ const Navbar = () => {
                             <Search size={20} />
                         </button>
 
-                        <button
-                            className="icon-btn"
-                            aria-label="User account"
-                            onClick={() => {
-                                const token = localStorage.getItem('token');
-                                if (token) {
-                                    const user = JSON.parse(localStorage.getItem('user'));
-                                    if (user.role === 'admin') {
-                                        navigate('/admin/dashboard');
-                                    } else {
-                                        navigate('/profile');
-                                    }
-                                } else {
-                                    navigate('/login');
-                                }
-                            }}
-                        >
-                            <User size={20} />
-                            <span className="icon-label">Account</span>
-                        </button>
+                        <div className="user-menu-container">
+                            <button
+                                className="icon-btn"
+                                aria-label="User account"
+                                onClick={handleUserIconClick}
+                            >
+                                <User size={20} />
+                                <span className="icon-label">
+                                    {currentUser ? currentUser.name?.split(' ')[0] || 'Account' : 'Login'}
+                                </span>
+                            </button>
+
+                            {showUserMenu && currentUser && (
+                                <div className="user-dropdown">
+                                    <div className="user-info">
+                                        <div className="user-avatar">
+                                            <User size={24} />
+                                        </div>
+                                        <div className="user-details">
+                                            <div className="user-name">{currentUser.name}</div>
+                                            <div className="user-email">{currentUser.email}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="dropdown-divider"></div>
+
+                                    <button className="dropdown-btn" onClick={handleProfileClick}>
+                                        <User size={16} />
+                                        {currentUser.role === 'admin' ? 'Admin Dashboard' : 'My Profile'}
+                                    </button>
+
+                                    <button className="dropdown-btn" onClick={() => {
+                                        navigate('/orders');
+                                        setShowUserMenu(false);
+                                    }}>
+                                        <ShoppingCart size={16} />
+                                        My Orders
+                                    </button>
+
+                                    <div className="dropdown-divider"></div>
+
+                                    <button className="dropdown-btn logout" onClick={handleLogout}>
+                                        <LogOut size={16} />
+                                        Logout
+                                    </button>
+                                </div>
+                            )}
+                        </div>
 
                         <button
                             className="icon-btn cart-btn"
@@ -191,8 +277,21 @@ const Navbar = () => {
                 <div className="navbar-glow"></div>
             </nav>
 
+            {showUserMenu && (
+                <div
+                    className="overlay"
+                    onClick={() => setShowUserMenu(false)}
+                ></div>
+            )}
+
+            <MobileSidebar
+                isOpen={showSidebar}
+                onClose={() => setShowSidebar(false)}
+            />
+
             <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Quintessential&display=swap');
 
         * {
           box-sizing: border-box;
@@ -286,31 +385,101 @@ const Navbar = () => {
           position: relative;
           cursor: pointer;
           text-decoration: none;
+          padding: 0.5rem 0;
         }
 
         .logo h1 {
-          font-family: 'Poppins', sans-serif;
-          font-size: 1.8rem;
-          font-weight: 800;
+          font-family: 'Quintessential', cursive;
+          font-size: 2rem;
+          font-weight: 400;
           color: #fff;
           margin: 0;
-          letter-spacing: 1px;
-          transition: all 0.3s;
+          letter-spacing: 2px;
+          position: relative;
+          z-index: 2;
+          background: linear-gradient(135deg, #fff 0%, #D4AF37 50%, #fff 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: logoShine 4s ease-in-out infinite;
+          filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.3));
+          transition: all 0.3s ease;
+        }
+
+        @keyframes logoShine {
+          0%, 100% {
+            background-position: 0% center;
+          }
+          50% {
+            background-position: 100% center;
+          }
         }
 
         .logo:hover h1 {
-          transform: scale(1.05);
+          transform: translateY(-2px);
+          filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.6));
+          animation: logoShine 2s ease-in-out infinite, logoFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes logoFloat {
+          0%, 100% {
+            transform: translateY(-2px);
+          }
+          50% {
+            transform: translateY(-5px);
+          }
         }
 
         .logo .gold {
           color: #D4AF37;
           display: inline-block;
-          animation: pulse 2s ease-in-out infinite;
+          animation: plusPulse 2s ease-in-out infinite;
+          font-weight: 700;
+          text-shadow: 0 0 20px rgba(212, 175, 55, 0.8),
+                       0 0 40px rgba(212, 175, 55, 0.4);
         }
 
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
+        @keyframes plusPulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1) rotate(0deg);
+          }
+          50% {
+            opacity: 0.7;
+            transform: scale(1.15) rotate(90deg);
+          }
+        }
+
+        .logo-glow {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 150%;
+          height: 150%;
+          background: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
+          filter: blur(20px);
+          opacity: 0;
+          transition: opacity 0.4s;
+          animation: glowPulse 3s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        @keyframes glowPulse {
+          0%, 100% {
+            opacity: 0.3;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          50% {
+            opacity: 0.6;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+        }
+
+        .logo:hover .logo-glow {
+          opacity: 1;
+          animation: glowPulse 1.5s ease-in-out infinite;
         }
 
         .logo-underline {
@@ -318,11 +487,22 @@ const Navbar = () => {
           background: linear-gradient(90deg, transparent, #D4AF37, transparent);
           margin-top: 4px;
           transform: scaleX(0);
-          transition: transform 0.3s;
+          transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
         }
 
         .logo:hover .logo-underline {
           transform: scaleX(1);
+          animation: underlineGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes underlineGlow {
+          0%, 100% {
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+          }
         }
 
         .nav-links {
@@ -619,6 +799,10 @@ const Navbar = () => {
           box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
         }
 
+        .user-menu-container {
+          position: relative;
+        }
+
         .icon-btn {
           background: rgba(26, 26, 26, 0.6);
           backdrop-filter: blur(10px);
@@ -652,6 +836,115 @@ const Navbar = () => {
         .mobile-search {
           display: none;
           padding: 0.7rem;
+        }
+
+        .user-dropdown {
+          position: absolute;
+          top: calc(100% + 0.5rem);
+          right: 0;
+          min-width: 280px;
+          background: rgba(20, 20, 20, 0.98);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(212, 175, 55, 0.3);
+          border-radius: 16px;
+          padding: 1rem;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+          animation: dropdownSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 1001;
+        }
+
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.5rem;
+        }
+
+        .user-avatar {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #D4AF37 0%, #F4D03F 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #0F0F0F;
+          flex-shrink: 0;
+        }
+
+        .user-details {
+          flex: 1;
+          overflow: hidden;
+        }
+
+        .user-name {
+          font-family: 'Poppins', sans-serif;
+          font-weight: 600;
+          font-size: 0.95rem;
+          color: #fff;
+          margin-bottom: 0.25rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .user-email {
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.8rem;
+          color: #999;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .dropdown-divider {
+          height: 1px;
+          background: rgba(212, 175, 55, 0.2);
+          margin: 0.75rem 0;
+        }
+
+        .dropdown-btn {
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background: transparent;
+          border: none;
+          border-radius: 10px;
+          color: #fff;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          transition: all 0.3s;
+          text-align: left;
+        }
+
+        .dropdown-btn:hover {
+          background: rgba(212, 175, 55, 0.1);
+          color: #D4AF37;
+          transform: translateX(5px);
+        }
+
+        .dropdown-btn.logout {
+          color: #ff4444;
+        }
+
+        .dropdown-btn.logout:hover {
+          background: rgba(255, 68, 68, 0.1);
+          color: #ff4444;
+        }
+
+        .overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 999;
+          background: transparent;
+        }
+
+        .cart-btn {
+          position: relative;
         }
 
         .cart-badge {
@@ -716,7 +1009,7 @@ const Navbar = () => {
           }
 
           .logo h1 {
-            font-size: 1.5rem;
+            font-size: 1.6rem;
           }
 
           .icon-label {
@@ -730,6 +1023,11 @@ const Navbar = () => {
           .nav-actions {
             gap: 0.7rem;
           }
+
+          .user-dropdown {
+            right: 0;
+            min-width: 260px;
+          }
         }
 
         @media (max-width: 480px) {
@@ -738,7 +1036,7 @@ const Navbar = () => {
           }
 
           .logo h1 {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
           }
 
           .icon-btn {
@@ -752,6 +1050,10 @@ const Navbar = () => {
 
           .nav-actions {
             gap: 0.5rem;
+          }
+
+          .user-dropdown {
+            min-width: 240px;
           }
         }
       `}</style>

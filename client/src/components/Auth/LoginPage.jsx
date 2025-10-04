@@ -48,7 +48,6 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            console.log('Attempting login with:', loginData.email);
             const response = await api.post(`${ENDPOINTS.AUTH}/login`, {
                 email: loginData.email,
                 password: loginData.password
@@ -59,29 +58,33 @@ const LoginPage = () => {
             if (response.success && response.data) {
                 const { user, token } = response.data;
 
-                console.log('User:', user);
-                console.log('Token:', token);
+                // Normalize user data
+                const normalizedUser = {
+                    id: user.id,
+                    email: user.email,
+                    name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
+                    role: user.role || 'customer',
+                    phone: user.phone,
+                    is_active: user.is_active
+                };
 
                 // Store credentials
                 localStorage.setItem('adminToken', token);
-                localStorage.setItem('user', JSON.stringify(user));
+                localStorage.setItem('user', JSON.stringify(normalizedUser));
 
-                // Force redirect using window.location for reliability
-                const redirectPath = (user.role === 'admin' || user.role === 'super_admin')
-                    ? '/admin/products'
-                    : '/';
-
-                console.log('Redirecting to:', redirectPath);
-
-                // Use window.location for a hard redirect
-                navigate(redirectPath, { replace: true });
+                // Redirect based on role
+                if (normalizedUser.role === 'admin') {
+                    navigate('/admin/dashboard', { replace: true });
+                } else {
+                    navigate('/', { replace: true });
+                }
             } else {
                 setError(response.message || 'Login failed. Please check your credentials.');
-                setLoading(false);
             }
         } catch (error) {
-            setError(error.message || 'Login failed. Please try again.');
             console.error('Login error:', error);
+            setError(error.message || 'Login failed. Please try again.');
+        } finally {
             setLoading(false);
         }
     };
