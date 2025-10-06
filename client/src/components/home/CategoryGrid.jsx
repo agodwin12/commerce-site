@@ -33,7 +33,7 @@ const CategoryGrid = () => {
     const getCategoryImage = (category) => {
         // If category has an image_url from backend, use it
         if (category.image_url) {
-            return `http://localhost:3000${category.image_url}`;
+            return `http://185.98.136.21:3001${category.image_url}`;
         }
         // Fallback placeholder
         return 'https://via.placeholder.com/600x400?text=Category';

@@ -1,5 +1,5 @@
 // API Configuration
-export const API_URL = 'http://localhost:3000/api';
+export const API_URL = 'http://185.98.136.21:3001/api';
 
 export const ENDPOINTS = {
     // Auth (changed from /admin/login to /auth/login)

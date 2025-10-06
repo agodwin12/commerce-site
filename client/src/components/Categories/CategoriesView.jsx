@@ -53,7 +53,7 @@ const CategoriesView = () => {
 
     const getCategoryImage = (category) => {
         if (category.image_url) {
-            return `http://localhost:3000${category.image_url}`;
+            return `http://185.98.136.21:3001${category.image_url}`;
         }
         return null;
     };

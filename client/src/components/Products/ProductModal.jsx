@@ -35,7 +35,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
             });
 
             if (product.images && product.images.length > 0) {
-                const existingUrls = product.images.map(img => `http://localhost:3000${img.image_url}`);
+                const existingUrls = product.images.map(img => `http://185.98.136.21:3001${img.image_url}`);
                 setPreviewUrls(existingUrls);
             }
         }
@@ -159,7 +159,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
                     console.log(`Uploading image ${i + 1}/${images.length}...`);
 
                     try {
-                        const imageResponse = await fetch(`http://localhost:3000/api/products/${productId}/images`, {
+                        const imageResponse = await fetch(`http://185.98.136.21:3001/api/products/${productId}/images`, {
                             method: 'POST',
                             body: imageFormData
                         });

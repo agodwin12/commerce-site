@@ -17,7 +17,7 @@ const CategoryModal = ({ category, onClose, onSave }) => {
             setDescription(category.description || '');
             // If category has existing image, show it
             if (category.image_url) {
-                setPreviewUrl(`http://localhost:3000${category.image_url}`);
+                setPreviewUrl(`http://185.98.136.21:3001${category.image_url}`);
             }
         }
     }, [category]);

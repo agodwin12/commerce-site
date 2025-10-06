@@ -76,7 +76,7 @@ const ProductsView = () => {
             }
 
             // Otherwise prepend the base URL
-            const fullUrl = `http://localhost:3000${imagePath}`;
+            const fullUrl = `http://185.98.136.21:3001${imagePath}`;
             console.log('Full image URL:', fullUrl);
             return fullUrl;
         }

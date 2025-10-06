@@ -19,7 +19,7 @@ const CartPage = () => {
                 return imagePath;
             }
 
-            return `http://localhost:3000${imagePath}`;
+            return `http://185.98.136.21:3001${imagePath}`;
         }
         return 'https://via.placeholder.com/150x150?text=Product';
     };

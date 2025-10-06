@@ -65,7 +65,7 @@ const FeaturedProducts = () => {
                 return imagePath;
             }
 
-            return `http://localhost:3000${imagePath}`;
+            return `http://185.98.136.21:3001${imagePath}`;
         }
         return 'https://via.placeholder.com/400x400?text=No+Image';
     };

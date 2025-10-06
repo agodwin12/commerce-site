@@ -67,7 +67,7 @@ const Shop = () => {
                 if (firstProduct.images && firstProduct.images.length > 0) {
                     console.log('First image object:', firstProduct.images[0]);
                     console.log('Image URL:', firstProduct.images[0].image_url);
-                    console.log('Full constructed URL:', `http://localhost:3000${firstProduct.images[0].image_url}`);
+                    console.log('Full constructed URL:', `http://185.98.136.21:3001${firstProduct.images[0].image_url}`);
                 } else {
                     console.log('❌ First product has NO images!');
                 }
@@ -125,7 +125,7 @@ const Shop = () => {
             }
 
             // Otherwise prepend the base URL
-            return `http://localhost:3000${imagePath}`;
+            return `http://185.98.136.21:3001${imagePath}`;
         }
         return 'https://via.placeholder.com/400x400?text=Product';
     };

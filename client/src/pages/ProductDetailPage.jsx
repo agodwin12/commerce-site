@@ -72,7 +72,7 @@ const ProductDetailsPage = () => {
                 if (img.image_url.startsWith('http')) {
                     return img.image_url;
                 }
-                return `http://localhost:3000${img.image_url}`;
+                return `http://185.98.136.21:3001${img.image_url}`;
             });
         }
         return ['https://via.placeholder.com/600x600?text=Product'];
@@ -86,7 +86,7 @@ const ProductDetailsPage = () => {
             if (imagePath.startsWith('http')) {
                 return imagePath;
             }
-            return `http://localhost:3000${imagePath}`;
+            return `http://185.98.136.21:3001${imagePath}`;
         }
         return 'https://via.placeholder.com/300x300?text=Product';
     };
